@@ -8,6 +8,7 @@ public interface OperacionBancoService {
 
 	Flux<OperacionCuentaBanco> findAllOperacion();
 	Mono<OperacionCuentaBanco> findByIdOperacion(String id);
-	Mono<OperacionCuentaBanco> saveOperacion(OperacionCuentaBanco producto);
-	
+	Mono<OperacionCuentaBanco> saveOperacion(OperacionCuentaBanco operacion);
+	//------------------------------------------------------------------------
+	Mono<OperacionCuentaBanco> saveOperacionRetiro(OperacionCuentaBanco operacion);
 }
