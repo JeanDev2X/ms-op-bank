@@ -48,7 +48,7 @@ public class SpringBootWebfluMsOpBancoApplication implements CommandLineRunner{
 		Flux.just(deposito,retiro,cuentaCredito,cuentaCuenta)
 		.flatMap(tipoOperacionService::saveTipoProducto)
 		.doOnNext(c -> {
-			log.info("Tipo de producto creado: " +  c.getDescripcion() + ", Id: " + c.getIdTipo());
+			log.info("Tipo de producto creado: " +  c.getDescripcion() + ", Id: " + c.getId());
 		}).thenMany(					
 				Flux.just(
 						//return serviceCredito.saveProducto(procredito);

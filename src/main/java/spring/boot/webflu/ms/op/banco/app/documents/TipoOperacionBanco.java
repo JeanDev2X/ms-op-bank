@@ -15,7 +15,7 @@ import lombok.Setter;
 public class TipoOperacionBanco {
 
 	@NotEmpty
-	private String idTipo;
+	private String id;
 	@NotEmpty
 	private String descripcion;
 	
@@ -24,7 +24,7 @@ public class TipoOperacionBanco {
 	}
 
 	public TipoOperacionBanco(String idTipo, String descripcion) {
-		this.idTipo = idTipo;
+		this.id = idTipo;
 		this.descripcion = descripcion;
 	}
 	
