@@ -11,4 +11,9 @@ public interface OperacionBancoService {
 	Mono<OperacionCuentaBanco> saveOperacion(OperacionCuentaBanco operacion);
 	//------------------------------------------------------------------------
 	Mono<OperacionCuentaBanco> saveOperacionRetiro(OperacionCuentaBanco operacion);
+	Mono<OperacionCuentaBanco> saveOperacionDeposito(OperacionCuentaBanco operacion);
+	Mono<OperacionCuentaBanco> operacionCuentaCuenta(OperacionCuentaBanco operacion);
+	Mono<OperacionCuentaBanco> saveOperacionCuentaCuentaCredito(OperacionCuentaBanco operacion);
+	//----------------REPORTES
+	Flux<OperacionCuentaBanco> findAllOperacionByDniCliente(String dni);
 }

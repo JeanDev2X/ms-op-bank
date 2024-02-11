@@ -38,6 +38,12 @@ public class OperacionBancoControllers {
 				.defaultIfEmpty(ResponseEntity.notFound().build());
 	}
 	
+	/*
+	Todas las cuentas bancarias tendrán un número máximo de transacciones (depósitos y retiros) 
+	que no cobrará comisión y superado ese número se cobrará comisión por cada transacción realizada.
+	EL número máximo de transacciones libres de comisiones 20.
+	
+	*/	
 	//----------------------------------------------
 	//RETIROS - TRANSACCION : UPDATE-CUENTAS-SALDO - 2 TRACCIONES COBRA COMISION(RETIRO O DEPOSITO) - TIPO TARGETA
 	@PostMapping("/retiro")
@@ -45,6 +51,40 @@ public class OperacionBancoControllers {
 		//System.out.println(producto.toString());
 		return productoService.saveOperacionRetiro(operacion);
 	}
+	
+	//DEPOSITO - 2 TRACCIONES COBRA COMISION(RETIRO O DEPOSITO)
+	@PostMapping("/deposito")
+	public Mono<OperacionCuentaBanco> operacionDeposito(@RequestBody OperacionCuentaBanco producto) {
+		//System.out.println(producto.toString());
+		return productoService.saveOperacionDeposito(producto);
+	}
+	
+	/*
+	Implementar las transferencias bancarias entre cuentas del mismo cliente y cuentas a terceros del mismo banco
+	*/
+	//OPERACION TRANSFERENCIA DE CUENTA A CUENTA
+	@PostMapping("/cuentaACuenta")
+	public Mono<OperacionCuentaBanco> operacionCuentaACuenta(@RequestBody OperacionCuentaBanco oper) {
+		//System.out.println(producto.toString());
+		return productoService.operacionCuentaCuenta(oper);
+	}
+	
+	//PAGO DE CUENTA CREDITO CON UNA CUENTA DE BANCO
+	@PostMapping("/CuentaBancoACredito") //Cuenta_a_Credito
+	public Mono<OperacionCuentaBanco> operacionCuentaBancoACredito(@RequestBody OperacionCuentaBanco producto) {		
+		return productoService.saveOperacionCuentaCuentaCredito(producto);
+	}
+	
+	/*
+	El sistema debe permitir consultar todos los movimientos de un producto bancario que tiene un cliente
+	*/
+	//LISTA LOS CLIENTE CON OP-BANCO - 
+	@GetMapping("/dni/{dni}")
+	public Flux<OperacionCuentaBanco> operacionesBancoCliente(@PathVariable String dni) {
+		Flux<OperacionCuentaBanco> oper = productoService.findAllOperacionByDniCliente(dni);
+		return oper;
+	}
+	
 	
 	
 }
