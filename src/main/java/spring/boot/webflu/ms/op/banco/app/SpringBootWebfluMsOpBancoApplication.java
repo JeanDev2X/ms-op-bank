@@ -52,10 +52,18 @@ public class SpringBootWebfluMsOpBancoApplication implements CommandLineRunner{
 		}).thenMany(					
 				Flux.just(
 						//return serviceCredito.saveProducto(procredito);
-						new OperacionCuentaBanco("47305710","900001","900003", new Date(),deposito,1000.00,10.0,"bcp","bcp"),
-						new OperacionCuentaBanco("47305711","900003","900005", new Date(),retiro,2000.00,10.0,"bcp","bcp"),
-						new OperacionCuentaBanco("08091424","900006","900003", new Date(),cuentaCredito,3000.00,10.0,"bcp","bcp"),
-						new OperacionCuentaBanco("47305710","900005","900007", new Date(),cuentaCuenta,5000.00,10.0,"bcp","bcp")
+						new OperacionCuentaBanco("47305710","900001","", new Date(),deposito,1000.00,0.0,"ahorro","bcp","bcp"),
+						new OperacionCuentaBanco("47305710","900001","", new Date(),deposito,50.00,0.0,"ahorro","bcp","bcp"),
+						new OperacionCuentaBanco("47305710","900001","", new Date(),deposito,50.00,2.0,"ahorro","bcp","bcp"),
+						
+						new OperacionCuentaBanco("47305711","900003","", new Date(),retiro,2000.00,0.0,"corriente","bcp","bcp"),						
+						new OperacionCuentaBanco("47305711","900044","", new Date(),retiro,2000.00,0.0,"corriente","bcp","bcp"),
+						new OperacionCuentaBanco("47305712","900005","", new Date(),retiro,2000.00,0.0,"plazoFijo","bcp","bcp"),
+						
+						new OperacionCuentaBanco("47305713","900006","450004", new Date(),cuentaCredito,50.00,0.0,"ahorroVip","bcp","bcp"),
+						new OperacionCuentaBanco("47305711","900003","900044", new Date(),cuentaCuenta,100.00,0.0,"corriente","bcp","bcp"),
+						new OperacionCuentaBanco("47305713","900006","450004", new Date(),cuentaCredito,10.00,0.0,"ahorroVip","bcp","bcp"),
+						new OperacionCuentaBanco("47305711","900003","900044", new Date(),cuentaCuenta,10.00,0.0,"corriente","bcp","bcp")
 						
 						)					
 					.flatMap(operacion -> {

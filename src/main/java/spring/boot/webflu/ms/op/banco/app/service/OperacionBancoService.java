@@ -1,5 +1,7 @@
 package spring.boot.webflu.ms.op.banco.app.service;
 
+import java.util.Date;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import spring.boot.webflu.ms.op.banco.app.documents.OperacionCuentaBanco;
@@ -16,4 +18,5 @@ public interface OperacionBancoService {
 	Mono<OperacionCuentaBanco> saveOperacionCuentaCuentaCredito(OperacionCuentaBanco operacion);
 	//----------------REPORTES
 	Flux<OperacionCuentaBanco> findAllOperacionByDniCliente(String dni);
+	Flux<OperacionCuentaBanco> findComision(String dni,Date fecha);
 }

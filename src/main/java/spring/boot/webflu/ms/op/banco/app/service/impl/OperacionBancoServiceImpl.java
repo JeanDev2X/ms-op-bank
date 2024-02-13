@@ -1,5 +1,7 @@
 package spring.boot.webflu.ms.op.banco.app.service.impl;
 
+import java.util.Date;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,7 @@ import spring.boot.webflu.ms.op.banco.app.dao.OperacionBancoDao;
 import spring.boot.webflu.ms.op.banco.app.documents.OperacionCuentaBanco;
 import spring.boot.webflu.ms.op.banco.app.documents.TipoOperacionBanco;
 import spring.boot.webflu.ms.op.banco.app.dto.CuentaBanco;
+import spring.boot.webflu.ms.op.banco.app.dto.TipoProducto;
 import spring.boot.webflu.ms.op.banco.app.service.OperacionBancoService;
 import spring.boot.webflu.ms.op.banco.app.exception.RequestException;
 
@@ -144,12 +147,13 @@ public class OperacionBancoServiceImpl implements OperacionBancoService {
 			
 			if (c1.getTipoProducto().getId().equalsIgnoreCase("1")) { //ahorro
 				comision = 2.0;
-
+				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());
 			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("2")) {//corriente
 				comision = 3.0;
-
+				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());
 			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("3")) {//plazo fijo
 				comision = 4.0;
+				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());				
 				//4 cuenta ahorro personal VIP				
 				//5 empresarial PYME 				
 			}else if (c1.getTipoProducto().getId().equalsIgnoreCase("4")
@@ -157,9 +161,8 @@ public class OperacionBancoServiceImpl implements OperacionBancoService {
 					) {
 				
 				comision = 5.0;
-
+				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());
 				if (c1.getSaldo() == 0) {
-
 					throw new RequestException(
 							"NO PUEDE REALIZAR RETIROS, MONTO MINIMO EN LA CUENTA S/.0");
 				}
@@ -174,13 +177,14 @@ public class OperacionBancoServiceImpl implements OperacionBancoService {
 				if (p > 2) {
 					//ASIGNA LA COMISION
 					System.out.println("Numero de transacciones >>>>>>" + p);
-					operacion.setComision(comision);
+					operacion.setComision(comision);					
 				}
 				//REALIZA EL DEPOSITO EN LA CUENTA DE BANCO
 				Mono<CuentaBanco> oper = productoBancoClient
 						.despositoBancario(operacion.getMontoPago(),operacion.getCuenta_origen(),operacion.getComision(),operacion.getCodigo_bancario_origen());
 				
-				System.out.println("paso el metodo");			
+				System.out.println("paso el metodo");
+				System.out.println("operacion -->" + operacion);
 				
 				return oper.flatMap(c -> {
 					if (c.getNumeroCuenta() == null) {
@@ -388,6 +392,11 @@ public class OperacionBancoServiceImpl implements OperacionBancoService {
 	@Override
 	public Flux<OperacionCuentaBanco> findAllOperacionByDniCliente(String dni) {
 		return productoDao.viewDniCliente(dni);
+	}
+
+	@Override
+	public Flux<OperacionCuentaBanco> findComision(String dni,Date fecha) {
+		return productoDao.findByDniAndComisionGreaterThanZero(dni,fecha);
 	}
 
 }

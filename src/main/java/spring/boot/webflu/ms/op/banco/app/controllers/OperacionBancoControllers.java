@@ -1,6 +1,9 @@
 package spring.boot.webflu.ms.op.banco.app.controllers;
 
+import java.util.Date;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -85,6 +88,12 @@ public class OperacionBancoControllers {
 		return oper;
 	}
 	
+	@GetMapping("/comision/{dni}/fecha/{fecha}")//yyyy-MM-dd
+	public Flux<OperacionCuentaBanco> operacionesComision(@PathVariable String dni,@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date fecha) {
+		Flux<OperacionCuentaBanco> oper = productoService.findComision(dni,fecha);
+		
+		return oper;
+	}
 	
 	
 }
