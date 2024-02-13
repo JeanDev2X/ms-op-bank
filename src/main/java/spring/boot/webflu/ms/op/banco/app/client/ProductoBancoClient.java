@@ -81,8 +81,8 @@ public class ProductoBancoClient {
 		Map<String, String> pathVariable = new HashMap<String,String>();
 		pathVariable.put("numero_Cuenta",cuenta_origen);
 		pathVariable.put("monto",Double.toString(monto));//Casteamos la cantidad para envia en el map
-		pathVariable.put("comision",Double.toString(comision));
-		pathVariable.put("codigo_bancario",codigo_bancario_destino);
+		pathVariable.put("comision",Double.toString(comision));		
+		pathVariable.put("codigo_bancario",codigo_bancario_destino);		
 		
 		return productoBancoClient
 					.put()

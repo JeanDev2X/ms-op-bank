@@ -1,5 +1,7 @@
 package spring.boot.webflu.ms.op.banco.app.dao;
 
+import java.util.Date;
+
 import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 
@@ -14,5 +16,8 @@ public interface OperacionBancoDao extends ReactiveMongoRepository<OperacionCuen
 	//---REPORTES
 	@Query("{ 'dni' : ?0 }")
 	Flux<OperacionCuentaBanco> viewDniCliente(String dni);
+	
+	@Query("{ 'dni': ?0, 'comision': { $gt: 0 }, 'fechaOperacion': { $gt: ?1 } }")
+    Flux<OperacionCuentaBanco> findByDniAndComisionGreaterThanZero(String dni,Date fecha);
 	
 }
