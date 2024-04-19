@@ -63,332 +63,225 @@ public class OperacionBancoServiceImpl implements OperacionBancoService {
 	@Override
 	public Mono<OperacionCuentaBanco> saveOperacionRetiro(OperacionCuentaBanco operacion) {
 		// OBTENIENDO EL NUMERO DE CUENTA + EL BANCO AL QUE PERTENECE
-		Mono<CuentaBanco> oper1 = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
-				operacion.getCodigo_bancario_origen());
+		Mono<CuentaBanco> cuentaMono = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
+	            operacion.getCodigo_bancario_origen());
+		
+		return cuentaMono.flatMap(cuenta -> {
+	        double comision = obtenerComision(cuenta.getTipoProducto().getId(), cuenta.getSaldo());
 
-		System.out.println("listo");
+	        // Contar el número de movimientos
+	        Mono<Long> numMovimientosMono = productoDao
+	                .consultaMovimientos(operacion.getDni(), operacion.getCuenta_origen(), cuenta.getCodigoBanco())
+	                .count();
 
-		return oper1.flatMap(c1 -> {
-			if (c1.getTipoProducto().getId().equalsIgnoreCase("1")) { // ahorro
+	        return numMovimientosMono.flatMap(numMovimientos -> {
+	            if (numMovimientos > 2) {
+	                operacion.setComision(comision);
+	            }
 
-				comision = 5.0;
+	            // Realizar un retiro en el MS-Producto Bancario
+	            Mono<CuentaBanco> opRetiroMono = productoBancoClient.retiroBancario(operacion.getCuenta_origen(),
+	                    operacion.getMontoPago(), operacion.getComision(), operacion.getCodigo_bancario_origen());
 
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("2")) {// corriente
+	            return opRetiroMono.flatMap(cuentaRetiro -> {
+	                if (cuentaRetiro.getNumeroCuenta() == null) {
+	                    return Mono.error(new InterruptedException("Tarjeta inválida"));
+	                }
 
-				comision = 20.0;
+	                // Registrar una transacción//refactorizar
+	                TipoOperacionBanco tipoOperacion = new TipoOperacionBanco();
+	                tipoOperacion.setId("2");
+	                tipoOperacion.setDescripcion("retiro");
+	                operacion.setTipoOperacion(tipoOperacion);
 
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("3")) {// plazo fijo
+	                return productoDao.save(operacion);
+	            });
+	        });
+	    });
 
-				comision = 30.0;
-
-				// 4 cuenta ahorro personal VIP
-				// 5 empresarial PYME
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("4")
-					|| c1.getTipoProducto().getId().equalsIgnoreCase("5")) {
-				comision = 40.0;
-				if (c1.getSaldo() == 0) {
-
-					throw new RequestException("NO PUEDE REALIZAR RETIROS, MONTO MINIMO EN LA CUENTA S/.0");
-				}
-			}
-
-			// CONTAR EL NUMERO DE MOVIMIENTOS
-			Mono<Long> valor = productoDao
-					.consultaMovimientos(operacion.getDni(), operacion.getCuenta_origen(), c1.getCodigoBanco()).count();
-
-			return valor.flatMap(p -> {
-				// NUMERO DE COMISIONES, SI LOS MOVIMIENTOS ES MAYOR A 20 - 2 para pruebas
-				System.out.println("--->>>>" + p);
-				if (p > 2) {
-					System.out.println("Numero de transacciones >>>>>>" + p);
-					operacion.setComision(comision);
-				}
-
-				// REALIZAR UN RETIRNO EN EL MS-PRODUCTO BANCARIO
-				Mono<CuentaBanco> opRetiro = productoBancoClient.retiroBancario(operacion.getCuenta_origen(),
-						operacion.getMontoPago(), operacion.getComision(), operacion.getCodigo_bancario_origen());
-
-				return opRetiro.flatMap(c -> {
-
-					if (c.getNumeroCuenta() == null) {
-//						return Mono.empty();
-						return Mono.error(new InterruptedException("TARGETA INVALIDA"));
-					}
-
-					// PARA QUE REGISTRE UNA TRANSACCION
-					TipoOperacionBanco tipo = new TipoOperacionBanco();
-					tipo.setId("2");
-					tipo.setDescripcion("retiro");
-					operacion.setTipoOperacion(tipo);
-
-					return productoDao.save(operacion);
-
-				});
-			});
-		});
-
-//		OperacionCuentaBanco opera = new OperacionCuentaBanco();
-//		opera.setDni("12346");
-//		Mono<OperacionCuentaBanco> op = Mono.just(opera);
-//		op.subscribe(p -> System.out.println("-->" + p));		
-//		return op;
+	}
+	
+	private double obtenerComision(String tipoProductoId, double saldo) {
+	    double comision = 0.0;
+	    if ("1".equals(tipoProductoId)) { // ahorro
+	        comision = 5.0;
+	    } else if ("2".equals(tipoProductoId)) {// corriente
+	        comision = 20.0;
+	    } else if ("3".equals(tipoProductoId)) {// plazo fijo
+	        comision = 30.0;
+	    } else if ("4".equals(tipoProductoId) || "5".equals(tipoProductoId)) { // ahorro personal VIP o empresarial PYME
+	        comision = 40.0;
+	        if (saldo == 0) {
+	            throw new RequestException("No se puede realizar retiros, monto mínimo en la cuenta S/.0");
+	        }
+	    }
+	    return comision;
 	}
 
 	// DEPOSITO - 2 TRACCIONES COBRA COMISION(RETIRO O DEPOSITO)
 	@Override
 	public Mono<OperacionCuentaBanco> saveOperacionDeposito(OperacionCuentaBanco operacion) {
-		// PARA OBTENER LA CUENTA DE BANCO - CUENTA BANCARIA
-		Mono<CuentaBanco> oper1 = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
-				operacion.getCodigo_bancario_origen());
+		// Obtener la cuenta de banco - cuenta bancaria
+	    Mono<CuentaBanco> cuentaMono = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
+	            operacion.getCodigo_bancario_origen());
 
-		return oper1.flatMap(c1 -> {
+	    return cuentaMono.flatMap(cuenta -> {
+	        double comision = obtenerComision(cuenta.getTipoProducto().getId(), cuenta.getSaldo());
+	        operacion.setProductoComision(cuenta.getTipoProducto().getDescripcion());
 
-			System.out.println("Datos cuenta : " + c1.toString());
-			System.out.println("Datos tipo Cuenta : " + c1.getTipoProducto().toString());
+	        // Consultar el número de operaciones
+	        Mono<Long> numMovimientosMono = productoDao
+	                .consultaMovimientos(operacion.getDni(), operacion.getCuenta_origen(), cuenta.getCodigoBanco())
+	                .count();
 
-			if (c1.getTipoProducto().getId().equalsIgnoreCase("1")) { // ahorro
-				comision = 2.0;
-				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("2")) {// corriente
-				comision = 3.0;
-				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("3")) {// plazo fijo
-				comision = 4.0;
-				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());
-				// 4 cuenta ahorro personal VIP
-				// 5 empresarial PYME
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("4")
-					|| c1.getTipoProducto().getId().equalsIgnoreCase("5")) {
+	        return numMovimientosMono.flatMap(numMovimientos -> {
+	            if (numMovimientos > 2) {
+	                operacion.setComision(comision);
+	            }
 
-				comision = 5.0;
-				operacion.setProductoComision(c1.getTipoProducto().getDescripcion());
-				if (c1.getSaldo() == 0) {
-					throw new RequestException("NO PUEDE REALIZAR RETIROS, MONTO MINIMO EN LA CUENTA S/.0");
-				}
-			}
+	            // Realizar el depósito en la cuenta de banco
+	            Mono<CuentaBanco> operacionMono = productoBancoClient.despositoBancario(operacion.getMontoPago(),
+	                    operacion.getCuenta_origen(), operacion.getComision(), operacion.getCodigo_bancario_origen());
 
-			// CONSULTAR EL NUMERO DE OPERACIONES
-			Mono<Long> valor = productoDao
-					.consultaMovimientos(operacion.getDni(), operacion.getCuenta_origen(), c1.getCodigoBanco()).count();
+	            return operacionMono.flatMap(cuentaDeposito -> {
+	                if (cuentaDeposito.getNumeroCuenta() == null) {
+	                    return Mono.error(new InterruptedException("Tarjeta inválida"));
+	                }
 
-			return valor.flatMap(p -> {
-				if (p > 2) {
-					// ASIGNA LA COMISION
-					System.out.println("Numero de transacciones >>>>>>" + p);
-					operacion.setComision(comision);
-				}
-				// REALIZA EL DEPOSITO EN LA CUENTA DE BANCO
-				Mono<CuentaBanco> oper = productoBancoClient.despositoBancario(operacion.getMontoPago(),
-						operacion.getCuenta_origen(), operacion.getComision(), operacion.getCodigo_bancario_origen());
+	                // Registrar una transacción
+	                TipoOperacionBanco tipoOperacion = new TipoOperacionBanco();
+	                tipoOperacion.setId("1");
+	                tipoOperacion.setDescripcion("deposito");
+	                operacion.setTipoOperacion(tipoOperacion);
 
-				System.out.println("paso el metodo");
-				System.out.println("operacion -->" + operacion);
-
-				return oper.flatMap(c -> {
-					if (c.getNumeroCuenta() == null) {
-						return Mono.error(new InterruptedException("TARGETA INVALIDA"));
-					}
-
-					// PARA QUE REGISTRE UNA TRANSACCION
-					TipoOperacionBanco tipo = new TipoOperacionBanco();
-					tipo.setId("1");
-					tipo.setDescripcion("deposito");
-					operacion.setTipoOperacion(tipo);
-
-					return productoDao.save(operacion);
-
-				});
-
-			});
-
-		});
+	                return productoDao.save(operacion);
+	            });
+	        });
+	    });
 
 	}
 
 	// DEPOSITO y RETIROS - OPERACION TRANSFERENCIA DE CUENTA A CUENTA
 	@Override
 	public Mono<OperacionCuentaBanco> operacionCuentaCuenta(OperacionCuentaBanco operacion) {
-		Mono<CuentaBanco> oper1 = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
-				operacion.getCodigo_bancario_origen());
+		// Obtener la cuenta de banco - cuenta bancaria
+	    Mono<CuentaBanco> cuentaMono = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
+	            operacion.getCodigo_bancario_origen());
 
-		oper1.subscribe(o -> System.out.println("Cliente" + o.toString()));
+	    cuentaMono.subscribe(cuenta -> System.out.println("Cliente: " + cuenta.toString()));
 
-		return oper1.flatMap(c1 -> {
+	    return cuentaMono.flatMap(cuenta -> {
+	        double comision = obtenerComision(cuenta.getTipoProducto().getId(), cuenta.getSaldo());
+	        if (comision > 0) {
+	            operacion.setComision(comision);
+	        }
 
-			if (c1.getTipoProducto().getId().equalsIgnoreCase("1")) {
+	        // Consultar el número de operaciones
+	        Mono<Long> numMovimientosMono = productoDao
+	                .consultaMovimientos(operacion.getDni(), operacion.getCuenta_origen(), cuenta.getCodigoBanco())
+	                .count();
 
-				comision = 2.5;
+	        return numMovimientosMono.flatMap(numMovimientos -> {
+	            if (numMovimientos > 2) {
+	                operacion.setComision(comision);
+	            }
 
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("2")) {
+	            // Realizar el retiro en la cuenta de origen
+	            Mono<CuentaBanco> retiroMono = productoBancoClient.retiroBancario(operacion.getCuenta_origen(),
+	                    operacion.getMontoPago(), operacion.getComision(), operacion.getCodigo_bancario_origen());
 
-				comision = 3.5;
+	            return retiroMono.flatMap(retiro -> {
+	                if (retiro.getNumeroCuenta() == null) {
+	                    return Mono.error(new InterruptedException("Tarjeta inválida"));
+	                }
 
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("3")) {
+	                // Realizar el depósito en la cuenta de destino
+	                Mono<CuentaBanco> depositoMono = productoBancoClient.despositoBancario(operacion.getMontoPago(),
+	                        operacion.getCuenta_destino(), operacion.getComision(), operacion.getCodigo_bancario_destino());
 
-				comision = 4.5;
+	                return depositoMono.flatMap(deposito -> {
+	                    if (deposito.getNumeroCuenta() == null) {
+	                        return Mono.error(new InterruptedException("Tarjeta inválida"));
+	                    }
 
-			} else if (c1.getTipoProducto().getId().equalsIgnoreCase("4")
-					|| c1.getTipoProducto().getId().equalsIgnoreCase("5")) {
+	                    // Registrar la operación de transferencia
+	                    TipoOperacionBanco tipoOperacion = new TipoOperacionBanco();
+	                    tipoOperacion.setId("4");
+	                    tipoOperacion.setDescripcion("cuentaCuenta");
+	                    operacion.setTipoOperacion(tipoOperacion);
 
-				if (c1.getSaldo() == 0) {
-
-					throw new RequestException(
-							"Ya no puede realizar retiros, debe tener un monton minimo" + " de S/.0 en su cuenta.");
-				}
-			}
-
-			// movimiento de operaciones
-			Mono<Long> valor = productoDao
-					.consultaMovimientos(operacion.getDni(), operacion.getCuenta_origen(), c1.getCodigoBanco()).count();
-
-			return valor.flatMap(p -> {
-				// EL número máximo de transacciones libres de comisiones 20. * Para probar se
-				// coloca *2
-				if (p > 2) {
-					operacion.setComision(comision);
-				}
-
-				// como va ha ser un deposito de una cuenta a otra, se debe de retirar de una
-				// cuenta para ser
-				// depositada en otra
-
-				// REALIZAR UN RETIRNO EN EL MS-PRODUCTO BANCARIO
-				Mono<CuentaBanco> oper2 = productoBancoClient.retiroBancario(operacion.getCuenta_origen(),
-						operacion.getMontoPago(), operacion.getComision(), operacion.getCodigo_bancario_origen());
-
-				return oper2.flatMap(c -> {
-
-					if (c.getNumeroCuenta() == null) {
-						return Mono.empty();
-					}
-
-					// REALIZAR UN PAGO/DEPOSITO DESTINO
-					Mono<CuentaBanco> oper3 = productoBancoClient.despositoBancario(operacion.getMontoPago(),
-							operacion.getCuenta_destino(), operacion.getComision(),
-							operacion.getCodigo_bancario_destino());
-
-					return oper3.flatMap(o -> {
-
-						if (c.getNumeroCuenta() == null) {
-							return Mono.empty();
-						}
-
-						TipoOperacionBanco tipo = new TipoOperacionBanco();
-						tipo.setId("4");
-						tipo.setDescripcion("cuentaCuenta");
-						operacion.setTipoOperacion(tipo);
-
-						return productoDao.save(operacion);
-
-					});
-				});
-			});
-		});
-
+	                    return productoDao.save(operacion);
+	                });
+	            });
+	        });
+	    });
 	}
 
 	// PAGO DE CUENTA CREDITO CON UNA CUENTA DE BANCO
 	@Override
 	public Mono<OperacionCuentaBanco> saveOperacionCuentaCuentaCredito(OperacionCuentaBanco operacion) {
 
-		// OBTENER LA CUENTA DE BANCO
-		Mono<CuentaBanco> oper1 = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
-				operacion.getCodigo_bancario_origen());
-		oper1.subscribe(o -> System.out.println("Cliente" + o.toString()));
+		// Obtener la cuenta de banco
+	    Mono<CuentaBanco> cuentaBancoMono = productoBancoClient.findByNumeroCuenta(operacion.getCuenta_origen(),
+	            operacion.getCodigo_bancario_origen());
+	    cuentaBancoMono.subscribe(cuenta -> System.out.println("Cliente: " + cuenta.toString()));
 
-		// OBTENER LA CUENTA DE CREDITO
-		System.out.println("DATOS OPERACION : " + operacion.toString());
-		Mono<CuentaBanco> opCredito = productoBancoCreditoClient
-				.findByNumeroCuentaCredito(operacion.getCuenta_destino(), operacion.getCodigo_bancario_destino());
+	    // Obtener la cuenta de crédito
+	    Mono<CuentaBanco> cuentaCreditoMono = productoBancoCreditoClient.findByNumeroCuentaCredito(
+	            operacion.getCuenta_destino(), operacion.getCodigo_bancario_destino());
 
-		return opCredito.defaultIfEmpty(new CuentaBanco()).flatMap(p -> {
+	    return cuentaCreditoMono.defaultIfEmpty(new CuentaBanco()).flatMap(cuentaCredito -> {
+	        if (cuentaCredito.getCodigoBanco() == null) {
+	            throw new RequestException("La cuenta de crédito no existe y no se puede realizar el pago.");
+	        }
 
-			if (p.getCodigoBanco() == null) {
-				throw new RequestException("LA CUENTA DE CREDITO - NO EXISTE NO PUEDE PAGAR");
-			} else {
-				return oper1.flatMap(c1 -> {
+	        return cuentaBancoMono.flatMap(cuentaBanco -> {
+	            double comision = obtenerComision(cuentaBanco.getTipoProducto().getId(),
+	                    cuentaBanco.getSaldo());
+	            if (comision > 0) {
+	                operacion.setComision(comision);
+	            }
 
-					if (c1.getTipoProducto().getId().equalsIgnoreCase("1")) { // si es producto = ahorro
+	            // Consultar el número de operaciones
+	            Mono<Long> numMovimientosMono = productoDao.consultaMovimientos(operacion.getDni(),
+	                    operacion.getCuenta_origen(), cuentaBanco.getCodigoBanco()).count();
 
-						comision = 2.5;
+	            return numMovimientosMono.flatMap(numMovimientos -> {
+	                if (numMovimientos > 2) {
+	                    operacion.setComision(comision);
+	                }
 
-					} else if (c1.getTipoProducto().getId().equalsIgnoreCase("2")) { // si es cuenta corrientes
+	                // Realizar el retiro en la cuenta de origen
+	                Mono<CuentaBanco> retiroMono = productoBancoClient.retiroBancario(operacion.getCuenta_origen(),
+	                        operacion.getMontoPago(), operacion.getComision(), operacion.getCodigo_bancario_origen());
 
-						comision = 3.5;
+	                return retiroMono.flatMap(retiro -> {
+	                    if (retiro.getNumeroCuenta() == null) {
+	                        return Mono.error(new InterruptedException("Tarjeta inválida"));
+	                    }
 
-					} else if (c1.getTipoProducto().getId().equalsIgnoreCase("3")) { // si es cuenta plazo fijo
+	                    // Realizar el depósito en la cuenta de crédito
+	                    Mono<CuentaBanco> depositoMono = productoBancoCreditoClient.despositoBancario(
+	                            operacion.getMontoPago(), operacion.getCuenta_destino(),
+	                            operacion.getCodigo_bancario_destino());
 
-						comision = 4.5;
+	                    return depositoMono.flatMap(deposito -> {
+	                        if (deposito.getNumeroCuenta() == null) {
+	                            return Mono.error(new InterruptedException("Tarjeta inválida"));
+	                        }
 
-						// las demas cuentas deben de tener un monto minimo
-					} else if (c1.getTipoProducto().getId().equalsIgnoreCase("4")
-							|| c1.getTipoProducto().getId().equalsIgnoreCase("5")) {
+	                        // Registrar la operación de transferencia
+	                        TipoOperacionBanco tipoOperacion = new TipoOperacionBanco();
+	                        tipoOperacion.setId("3");
+	                        tipoOperacion.setDescripcion("cuentaCredito");
+	                        operacion.setTipoOperacion(tipoOperacion);
 
-						comision = 5.0;
-
-						if (c1.getSaldo() == 0) {
-
-							throw new RequestException("NO PUEDE REALIZAR RETIROS, MONTO MINIMO EN LA CUENTA S/.0");
-						}
-
-					}
-
-					// consultar todso los moviemientos realizados
-					Mono<Long> valor = productoDao
-							.consultaMovimientos(operacion.getDni(), operacion.getCuenta_origen(), c1.getCodigoBanco())
-							.count();
-
-					return valor.flatMap(x -> {
-
-						System.out.println("Numero de transacciones >>>>>>" + p);
-						// NUMERO DE OPERACIONES -> MOVIMIENTOS
-						if (x > 2) {
-							System.out.println("Numero de transacciones >>>>>>" + p);
-							operacion.setComision(comision);
-						}
-
-						// REALIZAR UN RETIRNO EN EL MS-PRODUCTO BANCARIO
-						Mono<CuentaBanco> oper2 = productoBancoClient.retiroBancario(operacion.getCuenta_origen(),
-								operacion.getMontoPago(), operacion.getComision(),
-								operacion.getCodigo_bancario_origen());
-
-						System.out.println("paso el metodo");
-
-						return oper2.flatMap(c -> {
-							if (c.getNumeroCuenta() == null) {
-								return Mono.empty();
-							}
-
-							System.out.println("PARAMETROS : " + "MONTO : " + operacion.getMontoPago() + " BANCO : "
-									+ operacion.getCodigo_bancario_origen());
-
-							// REALIZAR UN PAGO DE UNA CUENTA DE CREDITO
-							Mono<CuentaBanco> oper3 = productoBancoCreditoClient.despositoBancario(
-									operacion.getMontoPago(), operacion.getCuenta_destino(),
-									operacion.getCodigo_bancario_destino());
-
-							System.out.println("paso un pago");
-
-							return oper3.flatMap(d -> {
-
-								if (c.getNumeroCuenta() == null) {
-									return Mono.empty();
-								}
-								// PARA QUE REGISTRE UNA TRANSACCION
-								TipoOperacionBanco tipo = new TipoOperacionBanco();
-								tipo.setId("3");
-								tipo.setDescripcion("cuentaCredito");
-								operacion.setTipoOperacion(tipo);
-
-								return productoDao.save(operacion);
-
-							});
-
-						});
-					});
-				});
-			}
-		});
+	                        return productoDao.save(operacion);
+	                    });
+	                });
+	            });
+	        });
+	    });
 
 	}
 
@@ -405,13 +298,10 @@ public class OperacionBancoServiceImpl implements OperacionBancoService {
 	// Operaciones YANKI
 
 	@Override
-	public void envioYanki(OperacionCuentaBanco operacion) {
-		System.out.println("Consumido desde YANKI");
-		System.out.println("OPERACION[" + operacion + "]");
-
+	public void envioYanki(OperacionCuentaBanco operacion) {				
+		log.info("OPERACION[" + operacion + "]");
 		Mono<CuentaYanki> oper1 = productoBancoClient.viewCuentaYanki(operacion.getCuenta_origen());
 		oper1.subscribe(o -> System.out.println("PRODUCTO BANCO[" + o.toString()));
-		System.out.println("hola11");
 		
 		// REALIZAR UN RETIRNO EN EL MS-PRODUCTO BANCARIO
 		Mono<CuentaYanki> oper2 = productoBancoClient.retiroCuentaYanki(operacion.getCuenta_origen(),
@@ -421,16 +311,12 @@ public class OperacionBancoServiceImpl implements OperacionBancoService {
 		// REALIZAR UN PAGO/DEPOSITO DESTINO
 		Mono<CuentaYanki> oper3 = productoBancoClient.despositoCuentaYanki(operacion.getMontoPago(),
 				operacion.getCuenta_destino());
-		oper3.subscribe(p -> System.out.println("RETIRO_CUENTA_DESTINO[" + p.toString()));
-		
+		oper3.subscribe(p -> System.out.println("RETIRO_CUENTA_DESTINO[" + p.toString()));		
 	}
 
 	@Override
-	public void envioBoitcoin(OperacionCuentaBanco operacion) {
-		
-		System.out.println("ENVIO A DEPOSITO BOOTCOIND");
-		System.out.println("OPERACION[" + operacion + "]");
-		
+	public void envioBoitcoin(OperacionCuentaBanco operacion) {		
+		log.info("OPERACION BOOTCOIND[" + operacion + "]");
 		Mono<CuentaYanki> oper1 = productoBancoClient.viewCuentaYanki(operacion.getCuenta_origen());
 		oper1.subscribe(o -> System.out.println("PRODUCTO BANCO[" + o.toString()));
 		
