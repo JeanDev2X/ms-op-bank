@@ -93,18 +93,7 @@ public class OperacionBancoControllers {
 		
 		return oper;
 	}
-	
-	//--------OPERACIONES YANKI
-	//ENVIA DINERO(RETIRA)
-//	@PostMapping("/enviaDinero")
-//	public Mono<OperacionCuentaBanco> enviaDinero(@RequestBody OperacionCuentaBanco oper) {
-//		System.out.println("Desde yanki");
-//		return productoService.operacionCuentaCuenta(oper);
-//	}
-	
-	//RECIBE DINERO(DEPOSITO)
-	
-	
+		
 }
 
 
